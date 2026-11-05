@@ -1,0 +1,809 @@
+<meta charset="utf-8">
+<title>Geolocate Detections Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: instrument console. Sticky tab rail, left control column, right instrument panels. */
+:root {
+  --bg: #f3f4f5;
+  --surface: #ffffff;
+  --sunk: #eceef0;
+  --ink: #1c2023;
+  --muted: #5c646b;
+  --line: #d6dadd;
+  --accent: #a9453e;        /* Akridia document rust */
+  --accent-soft: #f4e7e5;
+  --model: #1f5f8b;         /* corrected model */
+  --model-soft: #e3eef6;
+  --ok: #2c7a55;
+  --warn: #a8701a;
+  --crit: #b3261e;
+  --pt: rgba(31, 95, 139, .28);
+  --display: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111416; --surface: #1a1e21; --sunk: #22272b; --ink: #e5e8ea; --muted: #9aa3aa; --line: #30363b;
+    --accent: #d9776a; --accent-soft: #3a2422; --model: #6fb3e0; --model-soft: #1b2c38;
+    --ok: #5cc28f; --warn: #e0a64a; --crit: #ef6b62; --pt: rgba(111, 179, 224, .3); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111416; --surface: #1a1e21; --sunk: #22272b; --ink: #e5e8ea; --muted: #9aa3aa; --line: #30363b;
+  --accent: #d9776a; --accent-soft: #3a2422; --model: #6fb3e0; --model-soft: #1b2c38;
+  --ok: #5cc28f; --warn: #e0a64a; --crit: #ef6b62; --pt: rgba(111, 179, 224, .3); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 1280px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { padding-block: 22px 10px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 30px; line-height: 1.1; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+.lede { color: var(--muted); max-width: 72ch; margin: 6px 0 0; }
+.eyebrow { font: 600 11px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+nav.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+nav.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; padding-block: 0; }
+nav.tabs button { font: 600 14px/1 var(--display); letter-spacing: .03em; background: none; border: 0; color: var(--muted); padding: 13px 14px 11px; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--model); outline-offset: 2px; }
+main { padding-block: 20px 60px; }
+section.tab { display: grid; gap: 18px; }
+section.tab[hidden], [hidden] { display: none !important; }
+.cols { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-width: 0; }
+.panel > h3 { margin-bottom: 10px; }
+.rail { display: grid; gap: 14px; position: sticky; top: 64px; }
+@media (max-width: 900px) { .rail { position: static; } }
+.ctl { display: grid; gap: 3px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+.ctl label output { font: 500 13px var(--mono); color: var(--ink); white-space: nowrap; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.grp { display: grid; gap: 10px; }
+.grp + .grp { border-top: 1px dashed var(--line); padding-top: 12px; }
+.grp-h { font: 600 11px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+select, .btn { font: 500 13px var(--body); background: var(--sunk); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; }
+.btn { cursor: pointer; }
+.btn.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 760px) { .grid2, .grid3 { grid-template-columns: minmax(0, 1fr); } }
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; }
+@media (max-width: 1100px) { .flow { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .flow { grid-template-columns: minmax(0, 1fr); } }
+.stage { padding: 12px 14px; border-left: 1px solid var(--line); min-width: 0; }
+.stage:first-child { border-left: 0; }
+@media (max-width: 1100px) { .stage:nth-child(3n+1) { border-left: 0; } .stage { border-top: 1px solid var(--line); } }
+.stage .id { font: 600 11px/1 var(--mono); color: var(--accent); }
+.stage h4 { font: 600 14px/1.25 var(--display); margin: 4px 0 8px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font: 12px/1.45 var(--mono); }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.figure svg { display: block; width: 100%; height: auto; }
+.cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .tiles { grid-template-columns: minmax(0, 1fr); } }
+details.more { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 10px; }
+details.more > summary { cursor: pointer; font: 600 11px/1.4 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+details.more[open] > summary { margin-bottom: 10px; }
+details.more .grp + .grp { margin-top: 12px; }
+.tile { background: var(--sunk); border-radius: 5px; padding: 10px 12px; border-top: 3px solid var(--line); min-width: 0; }
+.tile.spec { border-top-color: var(--accent); }
+.tile.model { border-top-color: var(--model); }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile .v { font: 600 24px/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.scroll { overflow-x: auto; }
+.chip { display: inline-block; font: 600 11px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 4px 7px 3px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
+.chip.crit { color: var(--crit); } .chip.warn { color: var(--warn); } .chip.ok { color: var(--ok); } .chip.info { color: var(--model); }
+.finding { display: grid; gap: 10px; border-left: 4px solid var(--line); }
+.finding.crit { border-left-color: var(--crit); } .finding.warn { border-left-color: var(--warn); } .finding.info { border-left-color: var(--model); }
+.finding .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.finding .meta code { font: 12px var(--mono); color: var(--ink); background: var(--sunk); padding: 1px 5px; border-radius: 3px; }
+.fbody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .fbody { grid-template-columns: minmax(0, 1fr); } }
+.fbody p { margin: 0 0 8px; max-width: 70ch; }
+.lbl { font: 600 11px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.demo { background: var(--sunk); border-radius: 5px; padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.big { font: 600 20px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.vs { display: flex; flex-wrap: wrap; gap: 14px; }
+.vs > div { min-width: 0; }
+.vs .t { font-size: 12px; color: var(--muted); }
+.spec-c { color: var(--accent); } .model-c { color: var(--model); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+.note { font-size: 13px; color: var(--muted); max-width: 80ch; }
+.pass { color: var(--ok); font-weight: 600; } .fail { color: var(--crit); font-weight: 600; }
+svg text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+svg .lbl-ink { fill: var(--ink); }
+.frame-svg { cursor: crosshair; touch-action: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<style>
+.top-row { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+</style>
+
+<header class="top wrap">
+  <div class="top-row">
+    <div style="min-width:0">
+      <div class="eyebrow">Akridia Warden V0 · vision-perception-pipeline / geolocate-detections</div>
+      <h1>Geolocate Detections Lab</h1>
+    </div>
+  </div>
+  <p class="lede" data-html="lede"></p>
+</header>
+
+<nav class="tabs" data-aria="nav.aria">
+  <div class="wrap" role="tablist">
+    <button role="tab" data-tab="pipeline" aria-selected="true" data-i18n="tab.pipeline"></button>
+    <button role="tab" data-tab="budget" aria-selected="false" data-i18n="tab.budget"></button>
+    <button role="tab" data-tab="fusion" aria-selected="false" data-i18n="tab.fusion"></button>
+    <button role="tab" data-tab="findings" aria-selected="false" data-i18n="tab.findings"></button>
+    <button role="tab" data-tab="ref" aria-selected="false" data-i18n="tab.ref"></button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ============================== PIPELINE ============================== -->
+<section class="tab" id="tab-pipeline">
+  <div class="panel" style="padding:0">
+    <div class="flow" id="flow"></div>
+  </div>
+  <div class="cols">
+    <div class="rail">
+      <div class="panel">
+        <h3 data-i18n="geo.title"></h3>
+        <div class="grp" id="ctl-geo-air"></div>
+        <div class="grp" id="ctl-geo-gim"></div>
+        <div class="grp" id="ctl-geo-ter"></div>
+      </div>
+    </div>
+    <div class="grid2" style="align-items:start">
+      <div class="panel figure">
+        <h3 data-i18n="fig.frame"></h3>
+        <div id="fig-frame"></div>
+        <div class="cap" data-i18n="fig.frame.cap"></div>
+      </div>
+      <div class="panel figure">
+        <h3 data-i18n="fig.side"></h3>
+        <div id="fig-side"></div>
+        <div class="cap" id="cap-side"></div>
+      </div>
+      <div class="panel figure" style="grid-column: 1 / -1">
+        <h3 data-i18n="fig.top"></h3>
+        <div id="fig-top"></div>
+        <div class="cap" data-i18n="fig.top.cap"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== BUDGET ============================== -->
+<section class="tab" id="tab-budget" hidden>
+  <div class="cols">
+    <div class="rail">
+      <div class="panel">
+        <h3 data-i18n="bud.sources"></h3>
+        <div id="ctl-sg"></div>
+      </div>
+    </div>
+    <div style="display:grid;gap:18px;min-width:0">
+      <div class="panel">
+        <h3 data-i18n="bud.compare"></h3>
+        <div class="tiles" id="tiles" style="margin-top:12px"></div>
+        <p class="note" id="mc-note" style="margin:12px 0 0"></p>
+      </div>
+      <div class="grid2" style="align-items:start">
+        <div class="panel figure">
+          <h3 data-i18n="sc.title"></h3>
+          <div id="fig-scatter"></div>
+          <div class="legend"><span><i style="border-color:var(--accent);border-top-style:dashed"></i><span data-i18n="sc.legend.spec"></span></span><span><i style="border-color:var(--model)"></i><span data-i18n="sc.legend.r95"></span></span><span><i style="border-color:var(--model);border-top-style:dotted"></i><span data-i18n="sc.legend.ell"></span></span></div>
+        </div>
+        <div class="panel">
+          <h3 data-i18n="terms.title"></h3>
+          <div class="scroll"><table id="tbl-terms"></table></div>
+          <p class="note" style="margin-top:8px" data-i18n="terms.note"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FUSION ============================== -->
+<section class="tab" id="tab-fusion" hidden>
+  <div class="cols">
+    <div class="rail">
+      <div class="panel">
+        <h3 data-i18n="fu.title"></h3>
+        <div class="grp" id="ctl-fu"></div>
+      </div>
+      <div class="panel note" data-i18n="fu.note"></div>
+    </div>
+    <div style="display:grid;gap:18px;min-width:0">
+      <div class="panel figure">
+        <h3 data-i18n="fu.bars"></h3>
+        <div id="fig-bars"></div>
+        <div class="cap" data-i18n="fu.bars.cap"></div>
+      </div>
+      <div class="grid2">
+        <div class="panel figure"><h3 data-i18n="fu.one"></h3><div id="fig-fu-one"></div></div>
+        <div class="panel figure"><h3 id="fu-sel-title"></h3><div id="fig-fu-sel"></div>
+          <div class="row" style="margin-top:8px"><label class="note" for="fu-sel" data-i18n="fu.scheme"></label><select id="fu-sel"></select></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FINDINGS ============================== -->
+<section class="tab" id="tab-findings" hidden>
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h2 data-i18n="fnd.title"></h2>
+      <div class="legend"><span class="chip crit" data-i18n="sev.crit"></span><span class="chip warn" data-i18n="sev.warn"></span><span class="chip info" data-i18n="sev.info"></span></div>
+    </div>
+    <p class="note" style="margin:8px 0 0" data-html="fnd.intro"></p>
+  </div>
+  <div id="findings" style="display:grid;gap:14px"></div>
+</section>
+
+<!-- ============================== REF ============================== -->
+<section class="tab" id="tab-ref" hidden>
+  <div class="panel">
+    <h2 data-i18n="ref.title"></h2>
+    <p class="note" style="margin:8px 0 0" data-html="ref.intro"></p>
+  </div>
+  <div class="panel"><h3 data-i18n="ref.cases"></h3><div class="scroll"><table id="tbl-ref-cases"></table></div></div>
+  <div class="grid2">
+    <div class="panel"><h3 data-i18n="ref.inject"></h3><div class="scroll"><table id="tbl-ref-inject"></table></div></div>
+    <div class="panel"><h3 data-i18n="ref.terms"></h3><div class="scroll"><table id="tbl-ref-terms"></table></div></div>
+  </div>
+</section>
+
+</main>
+
+<script src="i18n.js"></script>
+<script src="core.js"></script>
+<script src="ref.js"></script>
+<script>
+"use strict";
+const G = window.GLD, REF = window.REF, D = G.D;
+const $ = (s, r = document) => r.querySelector(s);
+const f1 = (x) => (Number.isFinite(x) ? x.toFixed(1) : "—");
+const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : "—");
+const f3 = (x) => (Number.isFinite(x) ? x.toFixed(3) : "—");
+const pct = (x) => (Number.isFinite(x) ? Math.round(x * 100) + "%" : "—");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ----------------------------------------------------------- language */
+const LANG = "en";
+/** Look up a string; English is the fallback, then the key itself. {name} placeholders are filled from vars. */
+function t(key, vars) {
+  let v = (window.I18N[LANG] && window.I18N[LANG][key]);
+  if (v === undefined) v = window.I18N.en[key];
+  if (v === undefined) return key;
+  if (typeof v !== "string" || !vars) return v;
+  return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+}
+const U = { get m() { return t("u.m"); }, get deg() { return t("u.deg"); }, get dps() { return t("u.dps"); }, get ms() { return t("u.ms"); }, get mps() { return t("u.mps"); }, get px() { return t("u.px"); } };
+const GROUP_NAME = (g) => t("grp." + g);
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-i18n]").forEach((e) => { e.textContent = t(e.dataset.i18n); });
+  document.querySelectorAll("[data-html]").forEach((e) => { e.innerHTML = t(e.dataset.html); });
+  document.querySelectorAll("[data-aria]").forEach((e) => { e.setAttribute("aria-label", t(e.dataset.aria)); });
+}
+
+/* ----------------------------------------------------------- state */
+// yaw, pitch, roll, hfov and the slope direction are fixed here; the slope always falls away from the camera.
+const geo = { h: 100, pan: 0, tilt: -45, yaw: 0, pitch: 0, roll: 0, u: 960, v: 700, hfov: 45, slope: 0, slopeAz: 180 };
+// gnss and survey are horizontal (radial) sigmas, as the wires carry them.
+const sg = { heading: 1, att: 0.2, bore: 0.1, vert: 3, gnss: 2, survey: 0.5, terrain: 0.3, dt: 35, rate: 3, speed: 0, cam: 0.3, box: 5 };
+const mc = { n: 2000, seed: 1 };
+const fu = { beta: 0.8, dep: 45, trials: 1500, seed: 7, sel: "opp" };
+const W = 1920, H = 1080;
+
+function buildM(g = geo) {
+  return { u: g.u, v: g.v, W, H, hfov: g.hfov, pan: g.pan, tilt: g.tilt, yaw: g.yaw, pitch: g.pitch, roll: g.roll,
+    pos: [0, 0, -g.h], lever: [0, 0, 0], surf: { off: 0, slope: g.slope, az: g.slopeAz, dn: 0, de: 0 }, conv: g.conv || "zyx" };
+}
+
+/* ----------------------------------------------------------- controls */
+function slider(host, o, on) {
+  const id = o.id;
+  const wrap = document.createElement("div");
+  wrap.className = "ctl";
+  wrap.innerHTML = `<label for="${id}"><span>${esc(o.label)}</span><output id="${id}-o"></output></label>
+    <input type="range" id="${id}" min="${o.min}" max="${o.max}" step="${o.step}" value="${o.value}">`;
+  host.appendChild(wrap);
+  const inp = $("input", wrap), out = $("output", wrap);
+  const show = () => { out.textContent = (o.fmt ? o.fmt(+inp.value) : (+inp.value).toFixed(o.dp ?? 1)) + (o.unit ? " " + o.unit : ""); };
+  inp.addEventListener("input", () => { show(); on(+inp.value); });
+  show();
+  return { set(v) { inp.value = v; show(); } };
+}
+const raf = {};
+function schedule(key, fn) { if (raf[key]) return; raf[key] = requestAnimationFrame(() => { raf[key] = 0; fn(); }); }
+
+let geoCtl = {}, sgCtl = {};
+function groupHead(host, text) { const h = document.createElement("div"); h.className = "grp-h"; h.textContent = text; host.appendChild(h); }
+function geoSlider(host, key, min, max, step, unit, dp = 0) {
+  geoCtl[key] = slider(host, { id: "g-" + key, label: t("geo." + key), min, max, step, value: geo[key], unit, dp }, (v) => { geo[key] = v; schedule("all", renderLive); });
+}
+// The seventh field marks a source shown under "Other sources": small at the default geometry.
+const SG_DEF = [
+  ["POINTING", [["heading", 0, 5, 0.05, "deg", 2], ["att", 0, 2, 0.01, "deg", 2], ["bore", 0, 1, 0.01, "deg", 2]]],
+  ["PREMAP_GEOREF", [["vert", 0, 10, 0.1, "m", 1], ["gnss", 0, 7, 0.1, "m", 1], ["survey", 0, 5, 0.1, "m", 1, 1]]],
+  ["TERRAIN", [["terrain", 0, 3, 0.05, "m", 2]]],
+  ["TIMING", [["dt", 0, 100, 1, "ms", 0, 1], ["rate", 0, 90, 0.5, "dps", 1, 1], ["speed", 0, 20, 0.5, "mps", 1, 1]]],
+  ["CAMERA_MODEL", [["cam", 0, 3, 0.05, "px", 2, 1]]],
+  ["BOX_LOWER_EDGE", [["box", 0, 20, 0.5, "px", 1]]],
+];
+function syncGeo() { for (const k in geoCtl) geoCtl[k].set(geo[k]); if (sgCtl.dep) { sgCtl.dep.set(-geo.tilt); sgCtl.h.set(geo.h); } }
+function syncSg() { for (const k in sgCtl) if (k in sg) sgCtl[k].set(sg[k]); }
+
+function buildControls() {
+  geoCtl = {}; sgCtl = {};
+  const air = $("#ctl-geo-air"), gim = $("#ctl-geo-gim"), ter = $("#ctl-geo-ter");
+  [air, gim, ter].forEach((h) => { h.innerHTML = ""; });
+  groupHead(air, t("geo.air")); groupHead(gim, t("geo.gim")); groupHead(ter, t("geo.ter"));
+  geoSlider(air, "h", 30, 400, 1, U.m);
+  geoSlider(gim, "tilt", -90, 10, 0.5, U.deg, 1); geoSlider(gim, "pan", -180, 180, 1, U.deg);
+  geoSlider(ter, "slope", 0, 20, 0.5, U.deg, 1);
+
+  const host = $("#ctl-sg");
+  host.innerHTML = "";
+  const more = document.createElement("details"); more.className = "more";
+  more.innerHTML = `<summary>${esc(t("bud.more"))}</summary>`;
+  for (const [grp, items] of SG_DEF) {
+    for (const [parent, list] of [[host, items.filter((i) => !i[6])], [more, items.filter((i) => i[6])]]) {
+      if (!list.length) continue;
+      const g = document.createElement("div"); g.className = "grp";
+      groupHead(g, GROUP_NAME(grp) + " · " + grp);
+      parent.appendChild(g);
+      for (const [k, min, max, step, unit, dp] of list) {
+        sgCtl[k] = slider(g, { id: "s-" + k, label: t("bud." + k), min, max, step, value: sg[k], unit: U[unit], dp }, (v) => { sg[k] = v; schedule("all", renderLive); });
+      }
+    }
+  }
+  const g = document.createElement("div"); g.className = "grp";
+  groupHead(g, t("bud.geometry"));
+  host.appendChild(g);
+  sgCtl.dep = slider(g, { id: "s-dep", label: t("bud.dep"), min: 15, max: 89, step: 0.5, value: -geo.tilt, unit: U.deg, dp: 1 },
+    (v) => { geo.tilt = -v; geo.pitch = 0; geo.roll = 0; geo.u = 960; geo.v = 540; syncGeo(); schedule("all", renderLive); });
+  sgCtl.h = slider(g, { id: "s-h", label: t("bud.hgt"), min: 30, max: 400, step: 1, value: geo.h, unit: U.m, dp: 0 },
+    (v) => { geo.h = v; syncGeo(); schedule("all", renderLive); });
+  host.appendChild(more);
+
+  const fh = $("#ctl-fu");
+  fh.innerHTML = "";
+  slider(fh, { id: "f-beta", label: t("fu.beta"), min: 0, max: 1, step: 0.05, value: fu.beta, fmt: (v) => Math.round(v * 100) + "%" }, (v) => { fu.beta = v; schedule("fu", () => renderFusion(true)); });
+  slider(fh, { id: "f-dep", label: t("fu.dep"), min: 20, max: 85, step: 1, value: fu.dep, unit: U.deg, dp: 0 }, (v) => { fu.dep = v; schedule("fu", () => renderFusion(true)); });
+  $("#fu-sel").innerHTML = G.PATTERNS.filter((p) => p.id !== "one").map((p) => `<option value="${p.id}" ${p.id === fu.sel ? "selected" : ""}>${esc(t("pat." + p.id))}</option>`).join("");
+}
+
+/* ----------------------------------------------------------- svg helpers */
+function niceStep(range, n = 5) {
+  const raw = range / n, p = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / p;
+  return (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * p;
+}
+
+/* ----------------------------------------------------------- pipeline tab */
+function renderFlow(m, c, J, st) {
+  const hit = c.hit;
+  const r95 = J ? G.radiusP(J.cov) : NaN;
+  const ac = J ? G.alongCross(J.cov, c.az) : {};
+  const dom = J ? G.GROUPS.reduce((b, g) => (J.byGroup[g] > J.byGroup[b] ? g : b), G.GROUPS[0]) : "—";
+  const stages = [
+    ["W-eo-ir-detection-002", t("flow.s1"), [["u, v", `${geo.u.toFixed(0)}, ${geo.v.toFixed(0)}`]]],
+    ["M-V0-823", t("flow.s2"), [["hfov", geo.hfov.toFixed(1) + "°"], ["fx", c.fx.toFixed(1) + " px"]]],
+    ["M-V0-820", t("flow.s3"), [[t("flow.depression"), c.dep.toFixed(2) + "°"], [t("flow.azimuth"), ((c.az + 360) % 360).toFixed(1) + "°"]]],
+    ["M-V0-821", t("flow.s4"), hit
+      ? [["N, E", `${hit.p[0].toFixed(1)}, ${hit.p[1].toFixed(1)} ${U.m}`], [t("flow.slant"), hit.t.toFixed(1) + " " + U.m], [t("flow.incidence"), hit.inc.toFixed(2) + "°"]]
+      : [[t("flow.refusal"), t("flow.nointersect")]]],
+    [t("flow.id5"), t("flow.s5"), st ? [["tolerance", st.tol.toFixed(2) + " " + U.m], ["dominant", st.dom]] : [["—", "—"]]],
+    [t("flow.id6"), t("flow.s6"), J ? [["r95", r95.toFixed(2) + " " + U.m], [t("flow.sigAlong"), ac.along.toFixed(2) + " " + U.m], [t("flow.sigAcross"), ac.cross.toFixed(2) + " " + U.m], ["dominant", dom]] : [["—", "—"]]],
+  ];
+  $("#flow").innerHTML = stages.map(([id, title, kv]) => `<div class="stage"><div class="id">${esc(id)}</div><h4>${esc(title)}</h4>
+    <dl class="kv">${kv.map(([k, x]) => `<dt>${esc(k)}</dt><dd>${esc(x)}</dd>`).join("")}</dl></div>`).join("");
+}
+
+const FW = 320, FH = 180, FBW = 46, FBH = 110; // frame view size; a person-sized box in native px
+function buildFrame() {
+  $("#fig-frame").innerHTML = `<svg class="frame-svg" viewBox="0 0 ${FW} ${FH}" role="img" aria-label="${esc(t("fig.frame.aria"))}">
+    <rect x="0.5" y="0.5" width="${FW - 1}" height="${FH - 1}" fill="var(--sunk)" stroke="var(--line)"/>
+    <line x1="${FW / 2}" y1="0" x2="${FW / 2}" y2="${FH}" stroke="var(--line)" stroke-dasharray="3 3"/>
+    <line x1="0" y1="${FH / 2}" x2="${FW}" y2="${FH / 2}" stroke="var(--line)" stroke-dasharray="3 3"/>
+    <rect id="fr-box" width="${(FBW * FW) / W}" height="${(FBH * FH) / H}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+    <circle id="fr-pt" r="3" fill="var(--accent)"/>
+    <text id="fr-txt" x="6" y="14"></text></svg>`;
+  const svg = $("#fig-frame svg");
+  const pick = (ev) => {
+    const r = svg.getBoundingClientRect();
+    geo.u = Math.max(0, Math.min(W - 1, ((ev.clientX - r.left) / r.width) * W));
+    geo.v = Math.max(1, Math.min(H - 1, ((ev.clientY - r.top) / r.height) * H));
+    schedule("all", renderLive);
+  };
+  svg.addEventListener("pointerdown", (e) => { pick(e); try { svg.setPointerCapture(e.pointerId); } catch (_) {} });
+  svg.addEventListener("pointermove", (e) => { if (e.buttons) pick(e); });
+}
+function renderFrame() {
+  const sx = FW / W, sy = FH / H;
+  const box = $("#fr-box"), pt = $("#fr-pt");
+  box.setAttribute("x", (geo.u - FBW / 2) * sx); box.setAttribute("y", (geo.v - FBH) * sy);
+  pt.setAttribute("cx", geo.u * sx); pt.setAttribute("cy", geo.v * sy);
+  $("#fr-txt").textContent = `u ${geo.u.toFixed(0)}  v ${geo.v.toFixed(0)}`;
+}
+
+function renderSide(m, c) {
+  const w = 420, h = 240, pad = 30;
+  const az = c.az * D, ah = [Math.cos(az), Math.sin(az)];
+  const R = c.hit ? Math.hypot(c.hit.p[0], c.hit.p[1]) : geo.h / Math.tan(Math.max(1, c.dep) * D);
+  const xmax = Math.max(R * 1.25, geo.h * 0.6), xmin = -0.12 * xmax;
+  const zAt = (x) => G.surfaceHeight(m.surf, x * ah[0], x * ah[1]);
+  const zs = [xmin, xmax].map(zAt).concat([0]);
+  const zmin = Math.min(...zs) - 5, zmax = geo.h * 1.12;
+  const scale = Math.min((w - 2 * pad) / (xmax - xmin), (h - 2 * pad) / (zmax - zmin));
+  const X = (x) => pad + (x - xmin) * scale, Y = (z) => h - pad - (z - zmin) * scale;
+  let ground = "";
+  for (let i = 0; i <= 40; i++) { const x = xmin + ((xmax - xmin) * i) / 40; ground += (i ? "L" : "M") + X(x).toFixed(1) + " " + Y(zAt(x)).toFixed(1); }
+  const fill = ground + ` L${X(xmax)} ${h} L${X(xmin)} ${h} Z`;
+  let ray = "", arc = "", lbl = "";
+  if (c.hit) {
+    const zi = zAt(R);
+    ray = `<line x1="${X(0)}" y1="${Y(geo.h)}" x2="${X(R)}" y2="${Y(zi)}" stroke="var(--accent)" stroke-width="1.6"/>
+      <circle cx="${X(R)}" cy="${Y(zi)}" r="4" fill="var(--accent)"/>`;
+    const a = 34, ang = c.dep * D;
+    arc = `<path d="M${X(0) + a} ${Y(geo.h)} A${a} ${a} 0 0 1 ${X(0) + a * Math.cos(ang)} ${Y(geo.h) + a * Math.sin(ang)}" fill="none" stroke="var(--muted)"/>
+      <text x="${X(0) + a + 4}" y="${Y(geo.h) + 14}">${c.dep.toFixed(1)}°</text>`;
+    lbl = `<text x="${(X(0) + X(R)) / 2 + 6}" y="${(Y(geo.h) + Y(zi)) / 2 - 6}" class="lbl-ink">${esc(t("side.S", { s: c.hit.t.toFixed(1) }))}</text>
+      <text x="${X(R) - 4}" y="${Y(zi) + 16}" text-anchor="end">${esc(t("side.R", { r: R.toFixed(1) }))}</text>`;
+  }
+  $("#fig-side").innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(t("fig.side.aria"))}">
+    <path d="${fill}" fill="var(--sunk)"/><path d="${ground}" fill="none" stroke="var(--muted)" stroke-width="1.2"/>
+    <line x1="${X(0)}" y1="${Y(geo.h)}" x2="${X(0)}" y2="${Y(zAt(0))}" stroke="var(--line)" stroke-dasharray="3 3"/>
+    <text x="${X(0) + 4}" y="${(Y(geo.h) + Y(0)) / 2}">${esc(t("side.h", { h: geo.h }))}</text>
+    ${ray}${arc}${lbl}
+    <path d="M${X(0) - 7} ${Y(geo.h)} L${X(0) + 7} ${Y(geo.h)} M${X(0)} ${Y(geo.h) - 5} L${X(0)} ${Y(geo.h) + 5}" stroke="var(--ink)" stroke-width="2"/>
+  </svg>`;
+  $("#cap-side").textContent = c.hit
+    ? t("side.cap.hit", { a: (c.hit.t / Math.sin(c.dep * D)).toFixed(0), s: c.hit.t.toFixed(0) })
+    : t("side.cap.none");
+}
+
+function renderTop(m, c) {
+  const w = 760, h = 360, pad = 24;
+  const pts = [];
+  const per = 10;
+  const edge = (u0, v0, u1, v1) => { for (let i = 0; i < per; i++) { const tt = i / per; pts.push([u0 + (u1 - u0) * tt, v0 + (v1 - v0) * tt]); } };
+  edge(0, 0, W, 0); edge(W, 0, W, H); edge(W, H, 0, H); edge(0, H, 0, 0);
+  const ground = pts.map(([u, v]) => {
+    const mm = { ...m, u, v }; const cc = G.chain(mm);
+    if (cc.hit && Math.hypot(cc.hit.p[0], cc.hit.p[1]) < 1500) return [cc.hit.p[0], cc.hit.p[1], 1];
+    const a = Math.atan2(cc.dned[1], cc.dned[0]); return [1500 * Math.cos(a), 1500 * Math.sin(a), 0];
+  });
+  const all = ground.concat([[0, 0]]).concat(c.hit ? [[c.hit.p[0], c.hit.p[1]]] : []);
+  const ns = all.map((p) => p[0]), es = all.map((p) => p[1]);
+  const nmin = Math.min(...ns), nmax = Math.max(...ns), emin = Math.min(...es), emax = Math.max(...es);
+  const span = Math.max(nmax - nmin, (emax - emin) * h / w, 20);
+  const sc = Math.min((h - 2 * pad) / span, (w - 2 * pad) / Math.max(emax - emin, 20));
+  const cn = (nmin + nmax) / 2, ce = (emin + emax) / 2;
+  const X = (e) => w / 2 + (e - ce) * sc, Y = (n) => h / 2 - (n - cn) * sc;
+  const poly = ground.map((p, i) => (i ? "L" : "M") + X(p[1]).toFixed(1) + " " + Y(p[0]).toFixed(1)).join(" ") + "Z";
+  const step = niceStep(w / sc, 6);
+  const bar = step * sc;
+  $("#fig-top").innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(t("fig.top.aria"))}">
+    <rect x="0" y="0" width="${w}" height="${h}" fill="var(--sunk)"/>
+    <path d="${poly}" fill="var(--model-soft)" stroke="var(--model)" stroke-width="1.2"/>
+    ${c.hit ? `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(c.hit.p[1])}" y2="${Y(c.hit.p[0])}" stroke="var(--accent)" stroke-dasharray="4 3"/>
+    <circle cx="${X(c.hit.p[1])}" cy="${Y(c.hit.p[0])}" r="5" fill="var(--accent)"/>` : ""}
+    <path d="M${X(0) - 8} ${Y(0)} L${X(0) + 8} ${Y(0)} M${X(0)} ${Y(0) - 8} L${X(0)} ${Y(0) + 8}" stroke="var(--ink)" stroke-width="2"/>
+    <text x="${X(0) + 10}" y="${Y(0) - 8}" class="lbl-ink">${esc(t("top.uav"))}</text>
+    <g transform="translate(${w - 30},${34})"><path d="M0 -18 L6 0 L-6 0 Z" fill="var(--ink)"/><text x="0" y="14" text-anchor="middle" class="lbl-ink">N</text></g>
+    <line x1="${pad}" y1="${h - 14}" x2="${pad + bar}" y2="${h - 14}" stroke="var(--ink)" stroke-width="2"/>
+    <text x="${pad}" y="${h - 20}" class="lbl-ink">${esc(t("top.m", { x: step }))}</text>
+  </svg>`;
+}
+
+/* ----------------------------------------------------------- budget tab */
+function renderBudget() {
+  const m = buildM();
+  const c = G.chain(m);
+  if (!c.hit) { $("#tiles").innerHTML = `<p class="note">${esc(t("bud.nohit"))}</p>`; $("#mc-note").textContent = ""; return; }
+  const J = G.jacobianCov(m, sg);
+  const st = G.specTerms(c, m, sg);
+  const r95 = G.radiusP(J.cov);
+  const pts = G.monteCarlo(m, sg, mc.n, mc.seed);
+  const rad = pts.map((p) => Math.hypot(p[0], p[1]));
+  const emp = G.percentile(rad, 0.95);
+  const covSpec = rad.filter((x) => x <= st.tol).length / rad.length;
+  const covModel = rad.filter((x) => x <= r95).length / rad.length;
+  $("#tiles").innerHTML = `
+    <div class="tile spec"><div class="k">${esc(t("tile.spec"))}</div><div class="v spec-c">${f2(st.tol)} ${esc(U.m)}</div><div class="s">${esc(t("tile.spec.s", { x: pct(covSpec) }))}</div></div>
+    <div class="tile"><div class="k">${esc(t("tile.real"))}</div><div class="v">${f2(emp)} ${esc(U.m)}</div><div class="s">${esc(t("tile.real.s", { n: rad.length }))}</div></div>
+    <div class="tile model"><div class="k">${esc(t("tile.model"))}</div><div class="v model-c">${f2(r95)} ${esc(U.m)}</div><div class="s">${esc(t("tile.model.s", { x: pct(covModel) }))}</div></div>`;
+  $("#mc-note").textContent = covSpec < 0.9 ? t("mc.low", { r: (emp / st.tol).toFixed(1) }) : t("mc.ok", { x: pct(covSpec) });
+  const rows = G.GROUPS.map((g) => {
+    const real = Math.sqrt(J.byGroup[g]);
+    const sp = st.terms[g];
+    const k = sp > 1e-6 ? real / sp : NaN;
+    const cls = !Number.isFinite(k) ? "" : k > 1.15 ? "fail" : k < 0.87 ? "spec-c" : "pass";
+    return `<tr><td>${esc(GROUP_NAME(g))}<br><span class="note">${g}</span></td><td class="n">${f2(sp)}</td><td class="n">${f2(real)}</td><td class="n ${cls}">${sp > 1e-6 ? "×" + k.toFixed(2) : real > 0.01 ? esc(t("terms.notinspec")) : "—"}</td></tr>`;
+  }).join("");
+  $("#tbl-terms").innerHTML = `<thead><tr><th>${esc(t("terms.group"))}</th><th class="n">${esc(t("terms.spec"))}</th><th class="n">${esc(t("terms.real"))}</th><th class="n">${esc(t("terms.ratio"))}</th></tr></thead><tbody>${rows}
+    <tr><td><b>${esc(t("terms.total"))}</b></td><td class="n"><b>${f2(st.tol)}</b></td><td class="n"><b>${f2(r95)}</b> (r95)</td><td class="n"></td></tr></tbody>`;
+  drawScatter($("#fig-scatter"), pts, { spec: st.tol, r95, cov: J.cov, az: c.az });
+}
+
+function drawScatter(host, pts, o) {
+  const w = 380, h = 380, pad = 30;
+  const rad = pts.map((p) => Math.hypot(p[0], p[1]));
+  const lim = o.lim || Math.max(G.percentile(rad, 0.995), (o.spec || 0) * 1.1, (o.r95 || 0) * 1.15, 1);
+  const sc = (w / 2 - pad) / lim;
+  const X = (e) => w / 2 + e * sc, Y = (n) => h / 2 - n * sc;
+  const step = niceStep(lim * 2, 4);
+  let grid = "";
+  for (let v = step; v <= lim; v += step) grid += `<circle cx="${w / 2}" cy="${h / 2}" r="${v * sc}" fill="none" stroke="var(--line)"/>
+    <text x="${w / 2 + v * sc * 0.7071 + 3}" y="${h / 2 - v * sc * 0.7071}">${+v.toFixed(2)} ${esc(U.m)}</text>`;
+  const dots = pts.slice(0, 1500).map((p) => `<circle cx="${X(p[1]).toFixed(1)}" cy="${Y(p[0]).toFixed(1)}" r="1.7" fill="var(--pt)"/>`).join("");
+  let ell = "";
+  if (o.cov) {
+    const e = G.eig2(o.cov), k = Math.sqrt(5.991);
+    const a1 = Math.sqrt(e.l1) * k * sc, a2 = Math.sqrt(e.l2) * k * sc;
+    const angScreen = (-Math.atan2(Math.cos(e.ang), Math.sin(e.ang))) / D;
+    ell = `<ellipse cx="${w / 2}" cy="${h / 2}" rx="${a1}" ry="${a2}" transform="rotate(${angScreen} ${w / 2} ${h / 2})" fill="none" stroke="var(--model)" stroke-dasharray="1.5 3" stroke-width="1.5"/>`;
+  }
+  const look = o.az !== undefined ? (() => { const L = lim * 0.92 * sc, a = o.az * D;
+    return `<line x1="${w / 2}" y1="${h / 2}" x2="${w / 2 + Math.sin(a) * L}" y2="${h / 2 - Math.cos(a) * L}" stroke="var(--muted)" stroke-dasharray="2 4"/>
+      <text x="${w / 2 + Math.sin(a) * L}" y="${h / 2 - Math.cos(a) * L - 4}" text-anchor="middle">${esc(t("sc.look"))}</text>`; })() : "";
+  host.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(t("sc.aria"))}">
+    <rect width="${w}" height="${h}" fill="var(--sunk)"/>${grid}
+    <line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" stroke="var(--line)"/><line x1="${w / 2}" y1="${pad}" x2="${w / 2}" y2="${h - pad}" stroke="var(--line)"/>
+    ${look}${dots}${ell}
+    ${o.spec ? `<circle cx="${w / 2}" cy="${h / 2}" r="${o.spec * sc}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4"/>` : ""}
+    ${o.r95 ? `<circle cx="${w / 2}" cy="${h / 2}" r="${o.r95 * sc}" fill="none" stroke="var(--model)" stroke-width="2"/>` : ""}
+    <text x="${w - 8}" y="${h / 2 - 5}" text-anchor="end">E</text><text x="${w / 2 + 5}" y="${pad - 6}">N</text>
+  </svg>`;
+}
+
+/* ----------------------------------------------------------- fusion tab */
+let fuCache = null;
+function renderFusion(recompute = true) {
+  if (recompute || !fuCache) {
+    const t0 = performance.now();
+    fuCache = G.fusionExperiment({ h: geo.h, dep: fu.dep, W, H, hfov: geo.hfov }, sg, fu.beta, fu.trials, fu.seed);
+    fuCache.ms = Math.round(performance.now() - t0);
+  }
+  const r = fuCache.r95;
+  const w = 720, rowH = 40, pad = 190, h = G.PATTERNS.length * rowH + 30;
+  const max = Math.max(...Object.values(r), 10) * 1.1;
+  const X = (v) => pad + (v / max) * (w - pad - 60);
+  const step = niceStep(max, 5);
+  let grid = "";
+  for (let v = 0; v <= max; v += step) grid += `<line x1="${X(v)}" y1="4" x2="${X(v)}" y2="${h - 22}" stroke="var(--line)"/><text x="${X(v)}" y="${h - 6}" text-anchor="middle">${+v.toFixed(1)}</text>`;
+  const bars = G.PATTERNS.map((p, i) => {
+    const y = 8 + i * rowH;
+    const col = p.id === "one" || p.id === "same" ? "var(--accent)" : "var(--model)";
+    return `<text x="${pad - 10}" y="${y + 20}" text-anchor="end" class="lbl-ink">${esc(t("pat." + p.id))}</text>
+      <rect x="${X(0)}" y="${y + 6}" width="${X(r[p.id]) - X(0)}" height="20" fill="${col}" opacity=".85"/>
+      <text x="${X(r[p.id]) + 6}" y="${y + 21}" class="lbl-ink">${r[p.id].toFixed(2)} ${esc(U.m)}</text>`;
+  }).join("");
+  $("#fig-bars").innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(t("fu.bars.aria"))}">${grid}
+    <line x1="${X(10)}" y1="2" x2="${X(10)}" y2="${h - 22}" stroke="var(--crit)" stroke-dasharray="5 4"/><text x="${X(10) + 4}" y="14" style="fill:var(--crit)">${esc(t("fu.10m"))}</text>${bars}</svg>`;
+  $("#fu-sel-title").textContent = t("pat." + fu.sel);
+  const lim = Math.max(r.one, r[fu.sel]) * 1.25; // same scale on both plots
+  drawScatter($("#fig-fu-one"), fuCache.samples.one, { r95: r.one, lim });
+  drawScatter($("#fig-fu-sel"), fuCache.samples[fu.sel], { r95: r[fu.sel], lim });
+}
+
+/* ----------------------------------------------------------- findings */
+function flatBase(dep, h = 100) {
+  return { u: 960, v: 540, W, H, hfov: 45, pan: 0, tilt: -dep, yaw: 0, pitch: 0, roll: 0, pos: [0, 0, -h], lever: [0, 0, 0], surf: { off: 0, slope: 0, az: 0, dn: 0, de: 0 }, conv: "zyx" };
+}
+function disp(m, mut) { const b = G.groundOf(m); const p = G.clone(m); mut(p); const g = G.groundOf(p); return g && b ? [g[0] - b[0], g[1] - b[1]] : [NaN, NaN]; }
+const inj = (dep, src) => REF.inject.find((r) => r.dep === dep && r.source === src);
+const patRow = (p, r, cls) => `<tr><td>${esc(t("pat." + p.id))}</td><td class="n ${cls}">${f2(r[p.id])} ${esc(U.m)}</td></tr>`;
+
+const FINDINGS = [
+  { id: "F1", sev: "crit", demo(el) {
+      const rows = [45, 25].map((d) => {
+        const r = inj(d, "tilt");
+        return `<tr><td class="n">${d}°</td><td class="n spec-c">${f2(r.spec_formula)}</td><td class="n">${f2(r.measured)}</td><td class="n model-c">${f2(r.spec_formula / Math.sin(d * D))}</td><td class="n fail">×${(r.measured / r.spec_formula).toFixed(2)}</td></tr>`;
+      }).join("");
+      el.innerHTML = `<div class="lbl">${esc(t("F1.lbl"))}</div><div class="scroll"><table><thead><tr><th class="n">θ</th><th class="n">${esc(t("F1.c1"))}</th><th class="n">${esc(t("F1.c2"))}</th><th class="n">${esc(t("F1.c3"))}</th><th class="n">${esc(t("F1.c4"))}</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="row"><button class="btn" data-go="budget-25">${esc(t("F1.btn"))}</button></div>`;
+  } },
+  { id: "F2", sev: "crit", demo(el) {
+      const rows = [45, 25].map((d) => { const r = inj(d, "vertical"); return `<tr><td class="n">${d}°</td><td class="n spec-c">0.00</td><td class="n">${f2(r.measured)}</td><td class="n model-c">${f2(2.5 / Math.tan(d * D))}</td></tr>`; }).join("");
+      el.innerHTML = `<div class="lbl">${esc(t("F2.lbl"))}</div><div class="scroll"><table><thead><tr><th class="n">θ</th><th class="n">${esc(t("F2.c1"))}</th><th class="n">${esc(t("F2.c2"))}</th><th class="n">${esc(t("F2.c3"))}</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="row"><button class="btn" data-go="budget-vert">${esc(t("F2.btn"))}</button></div>`;
+  } },
+  { id: "F4", sev: "crit", demo(el) {
+      const upd = () => {
+        const m = flatBase(45), c = G.chain(m), st = G.specTerms(c, m, sg), J = G.jacobianCov(m, sg), r95 = G.radiusP(J.cov);
+        const pts = G.monteCarlo(m, sg, 2000, 3), rad = pts.map((p) => Math.hypot(...p));
+        const cs = rad.filter((x) => x <= st.tol).length / rad.length, cm = rad.filter((x) => x <= r95).length / rad.length;
+        el.innerHTML = `<div class="lbl">${esc(t("F4.lbl"))}</div>
+          <div class="vs"><div><div class="t">${esc(t("F4.spec"))}</div><div class="big spec-c">${f2(st.tol)} ${esc(U.m)} → ${pct(cs)}</div></div>
+          <div><div class="t">${esc(t("F4.model"))}</div><div class="big model-c">${f2(r95)} ${esc(U.m)} → ${pct(cm)}</div></div></div>
+          <div class="row"><button class="btn" data-go="budget-45">${esc(t("F4.btn"))}</button></div>`;
+      };
+      upd(); el._upd = upd;
+  } },
+  { id: "F5", sev: "warn", demo(el) {
+      const upd = () => {
+        const r = G.fusionExperiment({ h: 100, dep: 45, W, H, hfov: 45 }, sg, 0.8, 800, 11).r95;
+        el.innerHTML = `<div class="lbl">${esc(t("F5.lbl"))}</div><div class="scroll"><table><tbody>${G.PATTERNS.map((p) => patRow(p, r, p.id === "one" || p.id === "same" ? "spec-c" : "model-c")).join("")}</tbody></table></div>
+          <div class="row"><button class="btn" data-go="fusion">${esc(t("F5.btn"))}</button></div>`;
+      };
+      upd(); el._upd = upd;
+  } },
+  { id: "F6", sev: "warn", demo(el) {
+      el.innerHTML = `<div id="f6c"></div><div class="vs"><div><div class="t">${esc(t("F6.off"))}</div><div class="big spec-c" id="f6v"></div></div><div><div class="t">${esc(t("F6.tot"))}</div><div class="big" id="f6t"></div></div></div>`;
+      const st = { L: 7, Wd: 2.4, phi: 0 };
+      const upd = () => {
+        const off = (st.L * Math.abs(Math.cos(st.phi * D)) + st.Wd * Math.abs(Math.sin(st.phi * D))) / 2;
+        const J = G.jacobianCov(flatBase(45), sg), r95 = J ? G.radiusP(J.cov) : NaN;
+        $("#f6v", el).textContent = f2(off) + " " + U.m;
+        $("#f6t", el).textContent = t("F6.upto", { x: f1(r95 + off) });
+      };
+      const h = $("#f6c", el);
+      slider(h, { id: "f6-L", label: t("F6.L"), min: 0.5, max: 12, step: 0.1, value: st.L, unit: U.m }, (v) => { st.L = v; upd(); });
+      slider(h, { id: "f6-phi", label: t("F6.phi"), min: 0, max: 90, step: 1, value: st.phi, unit: U.deg, dp: 0 }, (v) => { st.phi = v; upd(); });
+      upd(); el._upd = upd;
+  } },
+  { id: "F7", sev: "info", demo(el) {
+      el.innerHTML = `<div id="f7c"></div><div class="vs"><div><div class="t">${esc(t("F7.spec"))}</div><div class="big spec-c" id="f7s"></div></div><div><div class="t">${esc(t("F7.chain"))}</div><div class="big model-c" id="f7m"></div></div></div><div class="note" id="f7n"></div>`;
+      const st = { dep: 25, slope: 15 };
+      const upd = () => {
+        const m = flatBase(st.dep); m.surf.slope = st.slope; m.surf.az = 180; // rises toward the camera, falls away from it
+        const d = disp(m, (p) => { p.surf.off += 1; });
+        const c = G.chain(m);
+        $("#f7s", el).textContent = "×" + f2(1 / Math.tan(st.dep * D));
+        $("#f7m", el).textContent = Number.isFinite(d[0]) ? "×" + f2(Math.hypot(...d)) : t("F7.nohit");
+        $("#f7n", el).textContent = c.hit ? t("F7.note", { x: f1(c.hit.inc) }) : "";
+      };
+      const h = $("#f7c", el);
+      slider(h, { id: "f7-d", label: t("F7.dep"), min: 15, max: 80, step: 1, value: st.dep, unit: U.deg, dp: 0 }, (v) => { st.dep = v; upd(); });
+      slider(h, { id: "f7-s", label: t("F7.slope"), min: 0, max: 20, step: 0.5, value: st.slope, unit: U.deg, dp: 1 }, (v) => { st.slope = v; upd(); });
+      upd();
+  } },
+  { id: "F9", sev: "crit", demo(el) {
+      el.innerHTML = `<div id="f9c"></div><div class="vs"><div><div class="t">${esc(t("F9.err"))}</div><div class="big spec-c" id="f9v"></div></div></div>`;
+      const st = { dz: 28, dep: 45 };
+      const upd = () => { const d = disp(flatBase(st.dep), (p) => { p.pos[2] += st.dz; }); $("#f9v", el).textContent = Number.isFinite(d[0]) ? f1(Math.hypot(...d)) + " " + U.m : t("F9.under"); };
+      const h = $("#f9c", el);
+      slider(h, { id: "f9-z", label: t("F9.dz"), min: 0, max: 40, step: 0.5, value: st.dz, unit: U.m }, (v) => { st.dz = v; upd(); });
+      slider(h, { id: "f9-d", label: t("F9.dep"), min: 20, max: 85, step: 1, value: st.dep, unit: U.deg, dp: 0 }, (v) => { st.dep = v; upd(); });
+      upd();
+  } },
+  { id: "F12", sev: "info", demo(el) {
+      el.innerHTML = `<div id="f12c"></div><div class="vs"><div><div class="t">${esc(t("F12.spec"))}</div><div class="big spec-c" id="f12s"></div></div><div><div class="t">${esc(t("F12.chain"))}</div><div class="big model-c" id="f12m"></div></div></div>`;
+      const st = { sh: 3, slope: 0 };
+      const upd = () => {
+        const m = flatBase(45); m.surf.slope = st.slope; m.surf.az = 180;
+        const d = disp(m, (p) => { p.surf.dn += st.sh; });
+        $("#f12s", el).textContent = f2(st.sh) + " " + U.m;
+        $("#f12m", el).textContent = f2(Math.hypot(...d)) + " " + U.m;
+      };
+      const h = $("#f12c", el);
+      slider(h, { id: "f12-s", label: t("F12.sh"), min: 0, max: 5, step: 0.1, value: st.sh, unit: U.m }, (v) => { st.sh = v; upd(); });
+      slider(h, { id: "f12-a", label: t("F12.slope"), min: 0, max: 15, step: 0.5, value: st.slope, unit: U.deg }, (v) => { st.slope = v; upd(); });
+      upd();
+  } },
+];
+function renderFindings() {
+  const host = $("#findings");
+  host.innerHTML = "";
+  FINDINGS.forEach((f, i) => {
+    const card = document.createElement("article");
+    card.className = "panel finding " + f.sev;
+    card.id = "finding-" + f.id;
+    card.innerHTML = `<div class="meta"><span class="chip ${f.sev}">${esc(t("sev." + f.sev))}</span><b style="color:var(--ink);font-family:var(--mono)">${i + 1}</b>${t(f.id + ".where").map((w) => `<code>${esc(w)}</code>`).join("")}</div>
+      <h3>${esc(t(f.id + ".title"))}</h3>
+      <div class="fbody"><div><div class="lbl">${esc(t("fnd.what"))}</div><p>${esc(t(f.id + ".problem"))}</p><div class="lbl">${esc(t("fnd.fix"))}</div><p>${esc(t(f.id + ".fix"))}</p></div><div class="demo"></div></div>`;
+    host.appendChild(card);
+    f.el = $(".demo", card);
+    f.demo(f.el);
+  });
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-go]");
+  if (!b) return;
+  const go = b.dataset.go;
+  if (go.startsWith("budget")) {
+    geo.pitch = 0; geo.roll = 0; geo.u = 960; geo.v = 540; geo.slope = 0;
+    if (go === "budget-25") geo.tilt = -25;
+    if (go === "budget-45") geo.tilt = -45;
+    if (go === "budget-vert") { geo.tilt = -45; sg.vert = sg.vert === 1 ? 3 : 1; syncSg(); }
+    syncGeo(); showTab("budget"); renderLive();
+  } else if (go === "fusion") { showTab("fusion"); }
+});
+
+/* ----------------------------------------------------------- reference tab */
+function renderRef() {
+  const rows = REF.cases.map((c) => {
+    const i = c.in;
+    const m = { u: i.u, v: i.v, W: REF.W, H: REF.H, hfov: REF.hfov, pan: i.pan, tilt: i.tilt, yaw: i.yaw, pitch: i.pitch, roll: i.roll, pos: i.pos, lever: [0, 0, 0], surf: { off: 0, slope: 0, az: 0, dn: 0, de: 0 } };
+    const r = G.chain(m);
+    const dg = r.hit && c.out.ground ? Math.max(...[0, 1, 2].map((k) => Math.abs(r.hit.p[k] - c.out.ground[k]))) : Infinity;
+    const dd = Math.max(...r.dned.map((x, k) => Math.abs(x - c.out.dir[k])));
+    const ok = dg < 1e-3 && dd < 1e-6;
+    return `<tr><td class="n">${i.u}, ${i.v}</td><td class="n">${i.pan} / ${i.tilt}</td><td class="n">${i.yaw} / ${i.pitch} / ${i.roll}</td>
+      <td class="n">${c.out.ground ? c.out.ground.slice(0, 2).map((x) => x.toFixed(3)).join(", ") : "—"}</td>
+      <td class="n">${r.hit ? r.hit.p.slice(0, 2).map((x) => x.toFixed(3)).join(", ") : "—"}</td>
+      <td class="n">${dg.toExponential(1)}</td><td class="${ok ? "pass" : "fail"}">${esc(t(ok ? "ref.match" : "ref.differs"))}</td></tr>`;
+  }).join("");
+  $("#tbl-ref-cases").innerHTML = `<thead><tr><th class="n">${esc(t("ref.uv"))}</th><th class="n">${esc(t("ref.pantilt"))}</th><th class="n">${esc(t("ref.ypr"))}</th><th class="n">${esc(t("ref.refNE"))}</th><th class="n">${esc(t("ref.simNE"))}</th><th class="n">${esc(t("ref.delta"))}</th><th>${esc(t("ref.result"))}</th></tr></thead><tbody>${rows}</tbody>`;
+  const injRows = REF.inject.map((r) => {
+    const m = flatBase(r.dep);
+    const d = disp(m, (p) => {
+      if (r.source === "tilt") p.tilt -= 0.5; if (r.source === "pitch") p.pitch += 0.5;
+      if (r.source === "heading") p.yaw += 0.5; if (r.source === "roll") p.roll += 0.5; if (r.source === "vertical") p.pos[2] += 2.5;
+    });
+    const js = Math.hypot(...d), ok = Math.abs(js - r.measured) < 1e-3;
+    return `<tr><td class="n">${r.dep}°</td><td>${r.source}</td><td class="n">${f3(r.measured)}</td><td class="n">${f3(js)}</td><td class="n spec-c">${f3(r.spec_formula)}</td><td class="${ok ? "pass" : "fail"}">${ok ? "✓" : "✗"}</td></tr>`;
+  }).join("");
+  $("#tbl-ref-inject").innerHTML = `<thead><tr><th class="n">${esc(t("ref.theta"))}</th><th>${esc(t("ref.source"))}</th><th class="n">${esc(t("ref.refm"))}</th><th class="n">${esc(t("ref.simm"))}</th><th class="n">${esc(t("ref.specf"))}</th><th></th></tr></thead><tbody>${injRows}</tbody>`;
+  const m = flatBase(45), c = G.chain(m);
+  const st = G.specTerms(c, m, { heading: 0.5, att: 0, bore: 0, vert: 0, gnss: 2, survey: 3, terrain: 0.3, dt: 2, rate: 90, speed: 0, cam: 0.3, box: 5 });
+  const T = REF.terms;
+  const pairs = [[t("ref.t.pointing"), T.pointing_0p5deg, st.terms.POINTING], [t("ref.t.terrain"), T.terrain_0p3m, st.terms.TERRAIN], [t("ref.t.premap"), T.premap_3m_2m, st.terms.PREMAP_GEOREF],
+    [t("ref.t.timing"), T.timing_2ms_90dps, st.terms.TIMING], [t("ref.t.camera"), T.camera_0p3px, st.terms.CAMERA_MODEL], [t("ref.t.box"), T.box_5px, st.terms.BOX_LOWER_EDGE], [t("ref.quad"), T.composed, st.tol]];
+  $("#tbl-ref-terms").innerHTML = `<thead><tr><th>${esc(t("ref.term"))}</th><th class="n">tolerance.py</th><th class="n">${esc(t("ref.simulator"))}</th><th></th></tr></thead><tbody>${pairs.map(([n, a, b]) => `<tr><td>${esc(n)}</td><td class="n">${f3(a)}</td><td class="n">${f3(b)}</td><td class="${Math.abs(a - b) < 1e-4 ? "pass" : "fail"}">${Math.abs(a - b) < 1e-4 ? "✓" : "✗"}</td></tr>`).join("")}
+    <tr><td>${esc(t("ref.dominant"))}</td><td class="n">${T.dominant}</td><td class="n">${st.dom}</td><td class="${T.dominant === st.dom ? "pass" : "fail"}">${T.dominant === st.dom ? "✓" : "✗"}</td></tr></tbody>`;
+}
+
+/* ----------------------------------------------------------- tabs, language and live render */
+let current = "pipeline";
+function showTab(id) {
+  current = id;
+  document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === id)));
+  document.querySelectorAll("section.tab").forEach((s) => { s.hidden = s.id !== "tab-" + id; });
+  try { history.replaceState(null, "", "#" + id); } catch (_) {}
+  if (id === "fusion") renderFusion(true);
+  if (id === "budget") renderBudget();
+  if (id === "findings") FINDINGS.forEach((f) => f.el && f.el._upd && f.el._upd());
+}
+document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+function renderLive() {
+  const m = buildM();
+  const c = G.chain(m);
+  const J = c.hit ? G.jacobianCov(m, sg) : null;
+  const st = c.hit ? G.specTerms(c, m, sg) : null;
+  renderFlow(m, c, J, st);
+  renderFrame();
+  renderSide(m, c);
+  renderTop(m, c);
+  if (current === "budget") renderBudget();
+}
+
+/** Build everything that carries text. Called at start and whenever the language changes. */
+function init() {
+  applyStatic();
+  buildControls();
+  buildFrame();
+  renderLive();
+  renderFindings();
+  renderRef();
+  if (current === "fusion") renderFusion(false);
+  if (current === "budget") renderBudget();
+}
+$("#fu-sel").addEventListener("change", (e) => { fu.sel = e.target.value; renderFusion(false); });
+
+init();
+const start = (location.hash || "").replace("#", "");
+if (["pipeline", "budget", "fusion", "findings", "ref"].includes(start)) showTab(start);
+</script>
